@@ -1,32 +1,30 @@
-# --- ETAPA 1: Construcción (Builder) ---
-FROM public.ecr.aws/lambda/nodejs:20 AS builder
+# Dockerfile corregido para el Laboratorio 3 (A1)
 
-# Trabajamos en una carpeta temporal totalmente aislada
+# Etapa 1: Construcción (build)
+# Corrección Defecto 1: Usar versión fija (nodejs:20) y nombrar la etapa 'build'
+FROM public.ecr.aws/lambda/nodejs:20 AS build
+
+# Establecer el directorio de trabajo obligatorio
 WORKDIR /build
 
-# Copiar manifiesto y lock file
-COPY package.json package-lock.json ./
-
-# Instalación limpia desde el lock file
+# Corrección Defecto 2 y 3: Copiar manifests primero e instalar con 'npm ci' para builds reproducibles
+COPY package*.json ./
 RUN npm ci
 
 # Copiar el código fuente
-COPY src/ ./src/
+COPY . .
 
-# Empaquetar el proyecto (genera /build/dist/handler.js)
-RUN npm run build
+# Corrección Defecto 4: Se eliminó la credencial en texto plano (ENV DB_PASSWORD)
 
+# Corrección Defecto 5: Se eliminó la instalación de herramientas del sistema (dnf)
 
-# --- ETAPA 2: Imagen Final ---
-FROM public.ecr.aws/lambda/nodejs:20
+### NO TOCAR DE ACA EN ADELANTE, CONSIDEREN QUE EL WORKDIR DEBE SER /build
+RUN npx esbuild src/handler.js \
+      --bundle --platform=node --target=node20 \
+      --outfile=dist/handler.js
 
-# Directorio de ejecución de Lambda
-WORKDIR ${LAMBDA_TASK_ROOT}
-
-# Copiar UNICAMENTE la carpeta dist desde la etapa builder
-COPY --from=builder /build/dist/ ./dist/
-
-# Solución para el evaluador: Eliminar la carpeta node_modules interna y limpiar cachés
-RUN rm -rf node_modules && npm cache clean --force
-
-CMD ["dist/handler.handler"]
+# Etapa final: recibe unicamente el artefacto empaquetado.
+# El arbol de node_modules se queda en la etapa anterior.
+FROM public.ecr.aws/lambda/nodejs:20 AS runtime
+COPY --from=build /build/dist/handler.js ${LAMBDA_TASK_ROOT}/
+CMD ["handler.handler"]
