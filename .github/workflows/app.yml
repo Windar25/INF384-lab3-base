@@ -63,7 +63,7 @@ jobs:
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
-  # 2. Secretos: Trufflehog / Gitleaks (Única compuerta que detiene el pipeline)
+  # 2. Secretos: Gitleaks (Única compuerta que detiene el pipeline)
   secretos:
     runs-on: ubuntu-latest
     steps:
@@ -72,10 +72,10 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Escaneo de secretos con Trufflehog
-        uses: trufflesecurity/trufflehog-action@main
-        with:
-          extra_args: --debug --only-verified
+      - name: Escaneo de secretos con Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   # 3. Dependencias: Audit de arbol completo (No detiene pipeline)
   dependencias:
