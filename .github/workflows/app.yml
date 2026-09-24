@@ -143,14 +143,23 @@ jobs:
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           ECR_REPOSITORY: inf384-lab3
-          IMAGE_TAG: ${{ github.sha }}
         run: |
-          docker build --platform linux/amd64 --label "org.opencontainers.image.title=inf384-lab3" -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          # Obtener los 7 primeros caracteres del commit
+          SHORT_SHA=${GITHUB_SHA::7}
           
-          DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG)
+          # Construir imagen con tag corto
+          docker build --platform linux/amd64 --label "org.opencontainers.image.title=inf384-lab3" -t $ECR_REGISTRY/$ECR_REPOSITORY:$SHORT_SHA .
+          
+          # Etiquetar la misma imagen con el tag 'prd'
+          docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$SHORT_SHA $ECR_REGISTRY/$ECR_REPOSITORY:prd
+          
+          # Publicar ambos tags
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$SHORT_SHA
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:prd
+          
+          # Exponer el digest de la imagen
+          DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' $ECR_REGISTRY/$ECR_REPOSITORY:$SHORT_SHA)
           echo "digest=$DIGEST" >> $GITHUB_OUTPUT
-
   # Este job viene completo y no se modifica.
   desplegar:
     needs: publicar
