@@ -3,7 +3,6 @@ const { Cookie } = require('tough-cookie');
 const { obtenerVersion } = require('./version');
 
 const NOMBRE_COOKIE_SESION = 'inf384_sesion';
-//const aws_secret = "wJalrXUtnFEMI/K7MDENG/bPxRfiCY1234567890";
 // Lee el marcador de sesion de las cabeceras del evento.
 // Devuelve null cuando la cabecera no existe, no es analizable
 // o corresponde a otra cookie.
