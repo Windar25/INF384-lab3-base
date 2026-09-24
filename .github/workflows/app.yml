@@ -100,12 +100,20 @@ jobs:
       - name: Checkout del código
         uses: actions/checkout@v4
 
-      - name: Instalar Semgrep
-        run: python3 -m pip install semgrep
-
-      - name: Analisis estatico SAST
+      - name: Analizar el codigo fuente
         continue-on-error: true
-        run: semgrep scan --config auto
+        run: |
+          docker run --rm \
+            --volume "${PWD}:/src" \
+            --workdir /src \
+            --env SEMGREP_SEND_METRICS=off \
+            semgrep/semgrep \
+            semgrep scan \
+            --config=p/default \
+            --config=p/javascript \
+            --json --quiet \
+            --output=semgrep.json \
+            src/
 
   # 5. Publicar a ECR
   publicar:
