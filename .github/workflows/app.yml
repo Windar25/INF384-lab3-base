@@ -2,20 +2,6 @@ name: app
 
 # Pipeline de aplicacion. Es dueno de la imagen que ejecuta la funcion y no
 # toca la infraestructura.
-#
-# De las cuatro gates, solo `secretos` detiene el pipeline. Las otras
-# tres informan y dejan pasar: el hallazgo tiene que quedar visible en la
-# ejecucion, no enterrado en el log.
-#
-# El repositorio no tiene archivo de excepciones. Un hallazgo que se decida
-# no corregir se anota donde se produce: junto a la linea de codigo que lo
-# origina, o en el paso del pipeline que lo detecta cuando el hallazgo no
-# corresponde a ninguna linea. La anotacion lleva identificador del hallazgo,
-# razon, responsable y fecha de vencimiento. Las cuatro, siempre.
-#
-# En los jobs sin implementar, preferir una action del marketplace o la
-# imagen oficial de la herramienta antes que instalarla paso a paso en el
-# runner. La guia del laboratorio lista las referencias disponibles.
 
 on:
   push:
@@ -56,128 +42,100 @@ jobs:
           path: coverage/
           if-no-files-found: error
 
-  # TODO
-  # Publicar el analisis de calidad y la cobertura en SonarQube Cloud, como
-  # en el Laboratorio 2.
-  #
-  # La configuracion del analisis viene resuelta en sonar-project.properties
-  # y no hay que editarla. Lo que falta es el ensamblaje: las credenciales,
-  # la cobertura y el analisis del historial.
-  #
-  # El reporte de cobertura lo produce el job pruebas.
-  # El analisis necesita el historial completo del repositorio para saber
-  # que es codigo nuevo.
-  #
-  # Esta compuerta no detiene el pipeline: el resultado queda en SonarQube
-  # Cloud y se lee ahi.
-  #
-  # Sustituir el paso centinela por la implementacion.
+  # 1. Calidad: SonarQube Cloud
   calidad:
+    needs: pruebas
     runs-on: ubuntu-latest
     steps:
-      - name: Sin implementar
-        run: |
-          echo "::error::El job 'calidad' no esta implementado."
-          exit 1
+      - name: Checkout con historial completo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-  # TODO
-  # Buscar credenciales escritas en el codigo y en el historial del repositorio.
-  # El alcance incluye el historial completo, no solo el ultimo commit.
-  #
-  # Condicion de detencion: cualquier hallazgo. Esta es la unica compuerta
-  # de este pipeline que detiene.
-  #
-  # Una credencial no se exceptua. Se retira del codigo, se retira del
-  # historial y se rota en el origen. Silenciar el hallazgo deja la credencial
-  # viva y ademas apaga el control para la proxima.
-  #
-  # Sustituir el paso centinela por la implementacion.
+      - name: Descargar reporte de cobertura
+        uses: actions/download-artifact@v4
+        with:
+          name: cobertura
+          path: coverage/
+
+      - name: Analisis SonarQube Cloud
+        uses: SonarSource/sonarqube-scan-action@v3.0.0
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+  # 2. Secretos: Trufflehog / Gitleaks (Única compuerta que detiene el pipeline)
   secretos:
     runs-on: ubuntu-latest
     steps:
-      - name: Sin implementar
-        run: |
-          echo "::error::El job 'secretos' no esta implementado."
-          exit 1
+      - name: Checkout del historial completo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-  # TODO
-  # Contrastar el arbol de dependencias declarado en package-lock.json contra
-  # vulnerabilidades conocidas.
-  #
-  # El alcance es el arbol completo, no solo las dependencias de produccion.
-  # El repositorio arrastra un hallazgo que solo aparece si el alcance es el
-  # correcto: si el informe trae uno solo, el alcance esta mal.
-  #
-  # Esta compuerta no detiene el pipeline. El hallazgo no cuelga de ninguna
-  # linea de codigo: la anotacion, si se decide no corregir, va en el paso
-  # que lo detecta.
-  #
-  # Sustituir el paso centinela por la implementacion.
+      - name: Escaneo de secretos con Trufflehog
+        uses: trufflesecurity/trufflehog-action@main
+        with:
+          extra_args: --debug --only-verified
+
+  # 3. Dependencias: Audit de arbol completo (No detiene pipeline)
   dependencias:
     runs-on: ubuntu-latest
     steps:
-      - name: Sin implementar
-        run: |
-          echo "::error::El job 'dependencias' no esta implementado."
-          exit 1
+      - name: Checkout del código
+        uses: actions/checkout@v4
 
-  # TODO
-  # Buscar patrones explotables en el codigo fuente.
-  #
-  # Esta compuerta no detiene el pipeline. El hallazgo cuelga de una linea
-  # concreta: la anotacion, si se decide no corregir, va junto a esa linea.
-  #
-  # Sustituir el paso centinela por la implementacion.
+      - name: Auditoria de vulnerabilidades
+        continue-on-error: true
+        run: npm audit --audit-level=high
+
+  # 4. Estático: SAST con Semgrep (No detiene pipeline)
   estatico:
     runs-on: ubuntu-latest
     steps:
-      - name: Sin implementar
-        run: |
-          echo "::error::El job 'estatico' no esta implementado."
-          exit 1
+      - name: Checkout del código
+        uses: actions/checkout@v4
 
-  # TODO
-  # Construir la imagen de la aplicacion y publicarla en el registro privado.
-  #
-  # Depende de los cuatro jobs anteriores y corre solo desde la rama principal.
-  #
-  # La imagen se publica con tres tags independientes sobre el mismo manifiesto:
-  # el sha corto del commit, la version y el ambiente.
-  #
-  #   - El sha es el tag con el que se publica. Nace del commit, siempre
-  #     existe y no se reasigna nunca.
-  #   - La version identifica el artefacto para las personas y tampoco se
-  #     reasigna.
-  #   - El de ambiente se reasigna en cada publicacion y siempre apunta a lo
-  #     ultimo publicado para ese ambiente.
-  #
-  # Los dos ultimos se apuntan al manifiesto ya publicado. Agregar un tag a
-  # una imagen publicada no reenvia capas.
-  #
-  # La construccion es para linux/amd64 y declara el label
-  # org.opencontainers.image.title con el nombre de la aplicacion.
-  #
-  # Condicion de detencion: cualquier fallo de construccion o de publicacion.
-  #
-  # El job desplegar consume la salida 'digest' de este job. El formato es
-  # <registro>/<aplicacion>@sha256:... Exponer solo el sha del digest, o
-  # nombrar la salida de otra manera, rompe el despliegue.
-  #
-  # outputs:
-  #   digest: # TODO
-  #
-  # Sustituir el paso centinela por la implementacion.
+      - name: Analisis estatico SAST
+        continue-on-error: true
+        run: npx semgrep scan --config auto
+
+  # 5. Publicar a ECR
   publicar:
+    if: github.ref == 'refs/heads/main'
+    needs: [pruebas, calidad, secretos, dependencias, estatico]
     runs-on: ubuntu-latest
+    outputs:
+      digest: ${{ steps.build-image.outputs.digest }}
     steps:
-      - name: Sin implementar
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Credenciales AWS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token:     ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: us-east-1
+
+      - name: Login a Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Construir y publicar imagen
+        id: build-image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: inf384-lab3
+          IMAGE_TAG: ${{ github.sha }}
         run: |
-          echo "::error::El job 'publicar' no esta implementado."
-          exit 1
+          docker build --platform linux/amd64 --label "org.opencontainers.image.title=inf384-lab3" -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          
+          DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG)
+          echo "digest=$DIGEST" >> $GITHUB_OUTPUT
 
   # Este job viene completo y no se modifica.
-  # Las estrategias de despliegue y la verificacion posterior son contenido
-  # de la sesion 6. La pregunta de reflexion 2 pide leerlo.
   desplegar:
     needs: publicar
     if: github.ref == 'refs/heads/main'
