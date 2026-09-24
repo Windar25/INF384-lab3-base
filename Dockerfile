@@ -1,4 +1,3 @@
-# Dockerfile corregido para el Laboratorio 3 (A1)
 
 # Etapa 1: Construcción (build)
 # Corrección Defecto 1: Usar versión fija (nodejs:20) y nombrar la etapa 'build'
