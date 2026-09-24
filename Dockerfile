@@ -1,30 +1,29 @@
 # --- ETAPA 1: Construcción (Builder) ---
 FROM public.ecr.aws/lambda/nodejs:20 AS builder
 
-# Usamos una carpeta de trabajo temporal aislada
+# Trabajamos en una carpeta temporal totalmente aislada
 WORKDIR /build
 
-# Copiamos solo los archivos de dependencias
+# Copiar manifiesto y lock file
 COPY package.json package-lock.json ./
 
 # Instalación limpia desde el lock file
 RUN npm ci
 
-# Copiamos el código fuente
+# Copiar el código fuente
 COPY src/ ./src/
 
-# Empaquetamos el proyecto en dist/handler.js
+# Empaquetar el proyecto (genera /build/dist/handler.js)
 RUN npm run build
 
 
 # --- ETAPA 2: Imagen Final ---
 FROM public.ecr.aws/lambda/nodejs:20
 
-# Directorio de trabajo nativo de AWS Lambda
+# Directorio de ejecución de Lambda
 WORKDIR ${LAMBDA_TASK_ROOT}
 
-# Copiamos UNICAMENTE la carpeta dist generada
+# Copiar UNICAMENTE la carpeta dist desde la etapa builder
 COPY --from=builder /build/dist/ ./dist/
 
-# Manejador de la función Lambda
 CMD ["dist/handler.handler"]
