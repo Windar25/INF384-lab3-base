@@ -100,9 +100,12 @@ jobs:
       - name: Checkout del código
         uses: actions/checkout@v4
 
+      - name: Instalar Semgrep
+        run: python3 -m pip install semgrep
+
       - name: Analisis estatico SAST
         continue-on-error: true
-        run: npx semgrep scan --config auto
+        run: semgrep scan --config auto
 
   # 5. Publicar a ECR
   publicar:
