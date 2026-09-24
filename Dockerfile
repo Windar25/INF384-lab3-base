@@ -1,20 +1,16 @@
-# Dockerfile del repositorio base.
-# Contiene cinco malas practicas deliberadas. Cada una lleva su numero en la
-# linea anterior. Corregirlas es el bloque A1 de la guia del laboratorio.
 
-# defecto 1
-FROM public.ecr.aws/lambda/nodejs:latest
+FROM public.ecr.aws/lambda/nodejs:20 AS builder
 
-# defecto 2
-COPY . .
+COPY package.json package-lock.json ./
 
-# defecto 3
-RUN npm install
+RUN npm ci
 
-# defecto 4
-ENV DB_PASSWORD="inf384-clave-en-texto-plano"
+COPY src/ ./src/
 
-# defecto 5
-RUN dnf install -y procps-ng vim && dnf clean all
+RUN npm run build
 
-CMD ["src/handler.handler"]
+FROM public.ecr.aws/lambda/nodejs:20
+
+COPY --from=builder ${LAMBDA_TASK_ROOT}/dist/handler.js ${LAMBDA_TASK_ROOT}/
+
+CMD ["handler.handler"]
